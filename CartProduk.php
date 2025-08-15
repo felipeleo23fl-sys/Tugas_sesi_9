@@ -1,39 +1,65 @@
 <?php
 session_start();
+include 'koneksi.php';
 
-// Hapus produk dari keranjang
+if (!isset($_SESSION['cart'])) {
+    $_SESSION['cart'] = [];
+}
+
+// Hapus item
 if (isset($_GET['remove'])) {
-    $id = intval($_GET['remove']);
-    unset($_SESSION['cart'][$id]);
-    header("Location: cart.php");
+    $pid = intval($_GET['remove']);
+    unset($_SESSION['cart'][$pid]);
+    header("Location: CartProduk.php");
     exit;
 }
 
-// Ubah jumlah qty
+// Update qty
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    foreach ($_POST['qty'] as $id => $qty) {
-        $_SESSION['cart'][$id]['qty'] = max(1, intval($qty));
+    foreach ($_POST['qty'] as $pid => $qty) {
+        $_SESSION['cart'][$pid] = max(1, intval($qty));
+    }
+}
+
+// Ambil data produk
+$cart_items = [];
+$total = 0;
+if (!empty($_SESSION['cart'])) {
+    $ids = implode(",", array_keys($_SESSION['cart']));
+    $result = $conn->query("SELECT * FROM products WHERE id IN ($ids)");
+    while ($row = $result->fetch_assoc()) {
+        $pid = $row['id'];
+        $qty = $_SESSION['cart'][$pid];
+        $subtotal = $row['price'] * $qty;
+        $total += $subtotal;
+        $cart_items[] = [
+            'id' => $pid,
+            'name' => $row['product_name'],
+            'price' => $row['price'],
+            'qty' => $qty,
+            'subtotal' => $subtotal
+        ];
     }
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>Keranjang Belanja</title>
+    <title>Shopping Cart</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body class="bg-light">
 <div class="container mt-5">
-    <h2>Keranjang Belanja</h2>
-    <a href="index.php" class="btn btn-secondary mb-3">Kembali ke Produk</a>
+    <h2>Shopping Cart</h2>
+    <a href="IndexProduk.php" class="btn btn-secondary mb-3">Melanjutkan belanja</a>
 
-    <?php if (!empty($_SESSION['cart'])): ?>
+    <?php if (!empty($cart_items)): ?>
     <form method="POST">
         <table class="table table-bordered bg-white">
             <thead>
                 <tr>
-                    <th>Nama Produk</th>
+                    <th>Produk</th>
                     <th>Harga</th>
                     <th>Qty</th>
                     <th>Subtotal</th>
@@ -41,18 +67,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </tr>
             </thead>
             <tbody>
-                <?php
-                $total = 0;
-                foreach ($_SESSION['cart'] as $item):
-                    $subtotal = $item['price'] * $item['qty'];
-                    $total += $subtotal;
-                ?>
+                <?php foreach ($cart_items as $item): ?>
                 <tr>
-                    <td><?= htmlspecialchars($item['product_name']) ?></td>
+                    <td><?= htmlspecialchars($item['name']) ?></td>
                     <td>Rp <?= number_format($item['price'], 0, ',', '.') ?></td>
                     <td><input type="number" name="qty[<?= $item['id'] ?>]" value="<?= $item['qty'] ?>" min="1" class="form-control" style="width:80px"></td>
-                    <td>Rp <?= number_format($subtotal, 0, ',', '.') ?></td>
-                    <td><a href="cart.php?remove=<?= $item['id'] ?>" class="btn btn-danger btn-sm">Hapus</a></td>
+                    <td>Rp <?= number_format($item['subtotal'], 0, ',', '.') ?></td>
+                    <td><a href="CartProduk.php?remove=<?= $item['id'] ?>" class="btn btn-danger btn-sm">Hapus</a></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>
@@ -63,11 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </tr>
             </tfoot>
         </table>
-        <button type="submit" class="btn btn-primary">Update Keranjang</button>
+        <button type="submit" class="btn btn-primary">Update Cart</button>
         <a href="checkout.php" class="btn btn-success">Checkout</a>
     </form>
     <?php else: ?>
-        <div class="alert alert-warning">Keranjang belanja kosong.</div>
+        <div class="alert alert-warning">Cart kosong.</div>
     <?php endif; ?>
 </div>
 </body>
